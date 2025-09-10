@@ -5,26 +5,26 @@ import path from 'path';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// middleware
 app.use(express.json());
 
-// Data file
+// data file
 const SALES_FILE = path.join('data', 'sales.json');
 
-// Interface
+// interface
 interface Transaction {
     productId: string;
     amount: number;
 }
 
-// Helper functions
+// helper functions
 async function readData(): Promise<Transaction[]> {
     try {
         const data = await fs.readFile(SALES_FILE, 'utf8');
         return JSON.parse(data);
     } catch {
         return [];
-    }
+    } 
 }
 
 async function writeData(data: Transaction[]): Promise<void> {
@@ -46,9 +46,9 @@ function getProductAmounts(transactions: Transaction[], productId: string): numb
         .map(t => t.amount);
 }
 
-// API Routes
+// api routes
 
-// 1. Get total amount for all products
+// get total amount for all products
 app.get('/api/products/totals', async (req, res) => {
     try {
         const transactions = await readData();
@@ -63,7 +63,7 @@ app.get('/api/products/totals', async (req, res) => {
     }
 });
 
-// 2. Get product details (product IDs with their amounts)
+// get product details (product IDs with their amounts)
 app.get('/api/products', async (req, res) => {
     try {
         const transactions = await readData();
@@ -83,7 +83,7 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
-// 3. Get product by ID with total amount
+// get product by ID with total amount
 app.get('/api/products/:id/total', async (req, res) => {
     try {
         const { id } = req.params;
@@ -100,7 +100,7 @@ app.get('/api/products/:id/total', async (req, res) => {
     }
 });
 
-// 4. Get product by ID with all amounts
+// get product by ID with all amounts
 app.get('/api/products/:id/amounts', async (req, res) => {
     try {
         const { id } = req.params;
@@ -117,7 +117,7 @@ app.get('/api/products/:id/amounts', async (req, res) => {
     }
 });
 
-// 5. Add new product
+//  add new product
 app.post('/api/products', async (req, res) => {
     try {
         const { productId, amount } = req.body;
@@ -141,7 +141,7 @@ app.post('/api/products', async (req, res) => {
     }
 });
 
-// Root endpoint
+// root endpoint
 app.get('/', (req, res) => {
     res.json({
         message: 'Product API Server',
