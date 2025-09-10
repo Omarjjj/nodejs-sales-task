@@ -1,5 +1,13 @@
 import dotenv from 'dotenv';
 dotenv.config();
+
+import './server';
+
+
+
+
+/*import dotenv from 'dotenv';
+dotenv.config();
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -45,4 +53,4 @@ async function main(): Promise<void> {
 main().catch(function (err) {
     console.error('error:', err.message);
     process.exit(1);
-});
+});*/
