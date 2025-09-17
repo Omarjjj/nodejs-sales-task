@@ -26,5 +26,9 @@
   {
     "productId": "TEST123",
     "amount": 100
+  },
+  {
+    "productId": "TEST1243",
+    "amount": 100
   }
 ]
