@@ -1,7 +1,34 @@
 [
-  { "productId": "A1", "amount": 100 },
-  { "productId": "B2", "amount": 150 },
-  { "productId": "A1", "amount": 200 },
-  { "productId": "C3", "amount": 50 },
-  { "productId": "B2", "amount": 100 }
+  {
+    "productId": "A1",
+    "amount": 100
+  },
+  {
+    "productId": "B2",
+    "amount": 150
+  },
+  {
+    "productId": "A1",
+    "amount": 200
+  },
+  {
+    "productId": "C3",
+    "amount": 50
+  },
+  {
+    "productId": "B2",
+    "amount": 100
+  },
+  {
+    "productId": "D4",
+    "amount": 75
+  },
+  {
+    "productId": "TEST123",
+    "amount": 100
+  },
+  {
+    "productId": "TEST1243",
+    "amount": 100
+  }
 ]
