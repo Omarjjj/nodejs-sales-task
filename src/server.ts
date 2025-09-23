@@ -2,25 +2,21 @@ import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/product-api';
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('MongoDB connection error:', err));
 
-// Simple logging middleware
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
 
-// Simple auth middleware
 const auth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const token = req.header('x-auth');
   if (token === (process.env.AUTH_TOKEN || 'secret')) return next();
