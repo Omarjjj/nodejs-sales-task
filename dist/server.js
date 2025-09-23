@@ -4,145 +4,127 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const promises_1 = __importDefault(require("fs/promises"));
-const path_1 = __importDefault(require("path"));
+const mongoose_1 = __importDefault(require("mongoose"));
 const app = (0, express_1.default)();
-const PORT = process.env.PORT || 3000;
-// Middleware
 app.use(express_1.default.json());
-// Data file
-const SALES_FILE = path_1.default.join('data', 'sales.json');
-// Helper functions
-async function readData() {
-    try {
-        const data = await promises_1.default.readFile(SALES_FILE, 'utf8');
-        return JSON.parse(data);
-    }
-    catch {
-        return [];
-    }
+// MongoDB connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/product-api';
+mongoose_1.default.connect(MONGODB_URI)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch((err) => console.error('MongoDB connection error:', err));
+app.use((req, _res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+});
+function auth(req, res, next) {
+    const token = req.header('x-auth');
+    if (token === 'secret')
+        return next();
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
 }
-async function writeData(data) {
-    await promises_1.default.writeFile(SALES_FILE, JSON.stringify(data, null, 2));
-}
-function calculateTotals(transactions) {
-    return transactions.reduce((acc, item) => {
-        if (item?.productId && typeof item.amount === 'number') {
-            acc[item.productId] = (acc[item.productId] || 0) + item.amount;
-        }
+app.use('/api', auth);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
+// Mongoose Schema and Model
+const transactionSchema = new mongoose_1.default.Schema({
+    productId: { type: String, required: true },
+    amount: { type: Number, required: true, min: 0 }
+}, {
+    timestamps: true // Adds createdAt and updatedAt fields
+});
+const Transaction = mongoose_1.default.model('Transaction', transactionSchema);
+const processData = (transactions) => {
+    const grouped = transactions.reduce((acc, t) => {
+        if (!acc[t.productId])
+            acc[t.productId] = [];
+        acc[t.productId].push(t.amount);
         return acc;
     }, {});
-}
-function getProductAmounts(transactions, productId) {
-    return transactions
-        .filter(t => t.productId === productId)
-        .map(t => t.amount);
-}
-// API Routes
-// 1. Get total amount for all products
-app.get('/api/products/totals', async (req, res) => {
-    try {
-        const transactions = await readData();
-        const totals = calculateTotals(transactions);
-        const result = Object.entries(totals).map(([productId, totalAmount]) => ({
-            productId,
-            totalAmount
-        }));
-        res.json({ success: true, data: result });
-    }
-    catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to get totals' });
-    }
+    const totals = Object.entries(grouped).reduce((acc, [id, amounts]) => {
+        acc[id] = amounts.reduce((sum, amount) => sum + amount, 0);
+        return acc;
+    }, {});
+    return { grouped, totals };
+};
+const validateProduct = (productId, amount) => {
+    if (!productId || typeof productId !== 'string')
+        return 'invalid product';
+    if (typeof amount !== 'number' || amount <= 0)
+        return 'invalid amount';
+    return null;
+};
+app.get('/', (req, res) => {
+    res.send('the server is Running!');
 });
-// 2. Get product details (product IDs with their amounts)
 app.get('/api/products', async (req, res) => {
     try {
-        const transactions = await readData();
-        const grouped = transactions.reduce((acc, t) => {
-            if (!acc[t.productId])
-                acc[t.productId] = [];
-            acc[t.productId].push(t.amount);
-            return acc;
-        }, {});
-        const result = Object.entries(grouped).map(([productId, amounts]) => ({
-            productId,
-            amounts
-        }));
-        res.json({ success: true, data: result });
+        const transactions = await Transaction.find();
+        const { grouped } = processData(transactions);
+        const data = Object.entries(grouped).map(([productId, amounts]) => ({ productId, amounts }));
+        res.status(200).json({ success: true, data });
     }
     catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to get products' });
+        console.error('Error fetching products:', error);
+        res.status(400).json({ success: false, message: 'Failed to fetch products' });
     }
 });
-// 3. Get product by ID with total amount
+app.get('/api/products/totals', async (req, res) => {
+    try {
+        const transactions = await Transaction.find();
+        const { totals } = processData(transactions);
+        const data = Object.entries(totals).map(([productId, totalAmounts]) => ({ productId, totalAmounts }));
+        res.status(200).json({ success: true, data });
+    }
+    catch (error) {
+        console.error('Error fetching totals:', error);
+        res.status(400).json({ success: false, message: 'Failed to fetch totals' });
+    }
+});
 app.get('/api/products/:id/total', async (req, res) => {
     try {
         const { id } = req.params;
-        const transactions = await readData();
-        const totals = calculateTotals(transactions);
-        if (!(id in totals)) {
-            return res.status(404).json({ success: false, error: 'Product not found' });
-        }
-        res.json({ success: true, data: { productId: id, totalAmount: totals[id] } });
+        const transactions = await Transaction.find();
+        const { totals } = processData(transactions);
+        if (!totals[id])
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        res.status(200).json({ success: true, data: { productId: id, amount: totals[id] } });
     }
     catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to get product total' });
+        console.error('Error fetching product total:', error);
+        res.status(400).json({ success: false, message: 'Failed to get the product amount' });
     }
 });
-// 4. Get product by ID with all amounts
 app.get('/api/products/:id/amounts', async (req, res) => {
     try {
         const { id } = req.params;
-        const transactions = await readData();
-        const amounts = getProductAmounts(transactions, id);
-        if (amounts.length === 0) {
-            return res.status(404).json({ success: false, error: 'Product not found' });
-        }
-        res.json({ success: true, data: { productId: id, amounts } });
+        const transactions = await Transaction.find();
+        const { grouped } = processData(transactions);
+        if (!grouped[id]?.length)
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        res.status(200).json({ success: true, data: { productId: id, amount: grouped[id] } });
     }
     catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to get product amounts' });
+        console.error('Error fetching product amounts:', error);
+        res.status(400).json({ success: false, message: 'Failed to get the product amounts' });
     }
 });
-// 5. Add new product
+const sendResponse = (res, statusCode, data) => {
+    res.status(statusCode).json({ success: true, ...data });
+};
 app.post('/api/products', async (req, res) => {
     try {
         const { productId, amount } = req.body;
-        if (!productId || typeof productId !== 'string') {
-            return res.status(400).json({ success: false, error: 'Invalid productId' });
-        }
-        if (typeof amount !== 'number' || amount <= 0) {
-            return res.status(400).json({ success: false, error: 'Invalid amount' });
-        }
-        const transactions = await readData();
-        const newTransaction = { productId, amount };
-        transactions.push(newTransaction);
-        await writeData(transactions);
-        res.status(201).json({ success: true, message: 'Product added', data: newTransaction });
+        const error = validateProduct(productId, amount);
+        if (error)
+            return res.status(400).json({ success: false, message: 'Invalid product data' });
+        const newTransaction = new Transaction({ productId, amount });
+        const savedTransaction = await newTransaction.save();
+        sendResponse(res, 201, { message: 'Product added', data: savedTransaction });
     }
     catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to add product' });
+        console.error('Error creating product:', error);
+        res.status(400).json({ success: false, message: 'Failed to create product' });
     }
-});
-// Root endpoint
-app.get('/', (req, res) => {
-    res.json({
-        message: 'Product API Server',
-        endpoints: {
-            'GET /api/products/totals': 'Get total amount for all products',
-            'GET /api/products': 'Get product details with amounts',
-            'GET /api/products/:id/total': 'Get product by ID with total amount',
-            'GET /api/products/:id/amounts': 'Get product by ID with all amounts',
-            'POST /api/products': 'Add new product'
-        }
-    });
-});
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-    console.log('Available endpoints:');
-    console.log('  GET  /api/products/totals');
-    console.log('  GET  /api/products');
-    console.log('  GET  /api/products/:id/total');
-    console.log('  GET  /api/products/:id/amounts');
-    console.log('  POST /api/products');
 });
